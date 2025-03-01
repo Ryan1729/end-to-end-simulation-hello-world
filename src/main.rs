@@ -1,5 +1,7 @@
 #![allow(non_snake_case)] // Keep the names from the article.
 
+const ANNUAL_FORTNIGHTS: u8 = 26;
+
 type Money = i32;
 
 #[derive(Default)]
@@ -77,10 +79,19 @@ fn translate_performance_Target100(balances: &[Money]) -> Performance {
     translate_performance_TargetBalance(balances, 100)
 }
 
+type DesignParameters = (Money,);
+
+fn translate_design_FortnightlyDeposit(design_parameters: DesignParameters) -> Vec<Transaction> {
+    vec![t!(d, design_parameters.0); ANNUAL_FORTNIGHTS as _]
+}
+
+
 fn main() {
     let tx = [t!(d, 10), t!(d, 20), t!(w, 5)];
     let sb = simulate_balance(&tx);
     println!("{sb:?}");
 
     println!("{:?}", translate_performance_Target100(&sb));
+
+    println!("{:?}", simulate_balance(&translate_design_FortnightlyDeposit((10,))));
 }
