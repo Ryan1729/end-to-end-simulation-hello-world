@@ -1,3 +1,5 @@
+#![allow(non_snake_case)] // Keep the names from the article.
+
 type Money = i32;
 
 #[derive(Default)]
@@ -60,9 +62,25 @@ fn simulate_balance(transactions: &[Transaction]) -> Vec<Money> {
 
     return balances
 }
-  
+
+type Performance = f32;
+
+fn translate_performance_TargetBalance(balances: &[Money], target: Money) -> Performance {
+    let mut sum = 0;
+    for b in balances {
+        sum += (b - target).abs();
+    }
+    (sum as Performance) / (balances.len() as Performance)
+}
+
+fn translate_performance_Target100(balances: &[Money]) -> Performance {
+    translate_performance_TargetBalance(balances, 100)
+}
 
 fn main() {
     let tx = [t!(d, 10), t!(d, 20), t!(w, 5)];
-    println!("{:?}", simulate_balance(&tx));
+    let sb = simulate_balance(&tx);
+    println!("{sb:?}");
+
+    println!("{:?}", translate_performance_Target100(&sb));
 }
