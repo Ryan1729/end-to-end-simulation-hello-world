@@ -27,19 +27,19 @@ enum Kind {
 
 #[derive(Clone, Copy)]
 struct Transaction {
-    kind: Kind, 
+    kind: Kind,
     amount: Money
 }
 
 macro_rules! t {
     (d, $amount: expr) => {
-        Transaction { 
+        Transaction {
             kind: Kind::Deposit,
             amount: $amount,
         }
     };
     (w, $amount: expr) => {
-        Transaction { 
+        Transaction {
             kind: Kind::Withdraw,
             amount: $amount,
         }
@@ -104,6 +104,22 @@ macro_rules! evaluate {
 }
 
 
+fn sample_performance_of_design(design_translator: DesignTranslator, design_variants: &[Money]) -> Vec<Performance> {
+    design_variants
+        .iter()
+        .map(|&m| performance_of_design(design_translator, (m,)))
+        .collect()
+}
+
+fn visualise_performance_of_designs(performances: &[Performance], designs: &[Money]) {
+    assert_eq!(performances.len(), designs.len());
+    print!("[");
+    for i in 0..performances.len() {
+        print!("({},{}),", designs[i], performances[i]);
+    }
+    println!("]");
+}
+
 fn main() {
     let tx = [t!(d, 10), t!(d, 20), t!(w, 5)];
     let sb = simulate_balance(&tx);
@@ -118,4 +134,9 @@ fn main() {
     evaluate!(translate_design_FortnightlyDeposit, design_1);
 
     println!("{:?}", simulate_balance(&translate_design_FortnightlyDeposit(design_1)));
+
+    let design_sweep = (0..16).collect::<Vec<_>>();
+    let performances = sample_performance_of_design(translate_design_FortnightlyDeposit, &design_sweep);
+
+    visualise_performance_of_designs(&performances, &design_sweep);
 }
