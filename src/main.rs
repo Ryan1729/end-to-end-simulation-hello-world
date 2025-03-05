@@ -137,6 +137,50 @@ fn visualise_performance_of_designs(performances: &[Performance], designs: &[Mon
     println!("]");
 }
 
+mod minimize {
+    type X = f32;
+    type Y = f32;
+
+    #[derive(Debug, Default, PartialEq)]
+    pub struct XY {
+        pub x: X,
+        pub y: Y,
+    }
+
+    pub fn minimize(
+        func: impl Fn(X) -> Y,
+        initial_guess: X,
+    ) -> XY {
+        // Nelder–Mead method
+        // TODO
+        println!("Dummy implmentation for now");
+        XY {
+            x: initial_guess,
+            y: func(initial_guess),
+        }
+    }
+
+    #[cfg(test)]
+    mod minimize_works {
+        use super::*;
+
+        #[test]
+        fn on_x_squared() {
+            assert_eq!(
+                minimize(|x| x * x, 0.3),
+                XY::default(),
+            );
+
+            assert_eq!(
+                minimize(|x| x * x, -0.3),
+                XY::default(),
+            );
+        }
+    }
+
+}
+use minimize::minimize;
+
 fn main() {
     let tx = [t!(d, 10), t!(d, 20), t!(w, 5)];
     let sb = simulate_balance(&tx);
@@ -160,4 +204,15 @@ fn main() {
     let performances = sample_performance_of_design(translate_design_FortnightlyDeposit, &design_sweep);
 
     visualise_performance_of_designs(&performances, &design_sweep);
+
+    let design_1_minimum_xy = minimize(
+        |x| performance_of_design(translate_design_FortnightlyDeposit, p!(x.round() as i32)),
+        3.0
+    );
+
+    println!(
+        "minimum: {} -> {}",
+        design_1_minimum_xy.x,
+        design_1_minimum_xy.y
+    );
 }
