@@ -141,22 +141,79 @@ mod minimize {
     type X = f32;
     type Y = f32;
 
-    #[derive(Debug, Default, PartialEq)]
-    pub struct XY {
-        pub x: X,
+    /// The inputs and outputs of a function call.
+    #[derive(Debug, PartialEq)]
+    pub struct Call<const N: usize> {
+        pub xs: [X; N],
         pub y: Y,
     }
 
-    pub fn minimize(
-        func: impl Fn(X) -> Y,
-        initial_guess: X,
-    ) -> XY {
+    impl <const N: usize> Call<N> {
+        pub const TWO_D_ZERO: Call<1> = Call {
+            xs: [0.],
+            y: 0.,
+        };
+    }
+
+    pub fn minimize<const N: usize>(
+        f: impl Fn([X; N]) -> Y,
+        initial_guess: [X; N],
+    ) -> Call<N> {
         // Nelder–Mead method
-        // TODO
+        // References used:
+        // Wikipedia Article: https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method
+        // A paper: https://www.researchgate.net/publication/385833573_The_Nelder-Mead_Simplex_Algorithm_Is_Sixty_Years_Old_New_Convergence_Results_and_Open_Questions
+        // For the name of the convergence constants we use the greek letter naming convention from the article.
+        // Otherwise we use the naming convention from that paper. We implement the ordered version.
+        //const ALPHA: X = 1.;
+        //const GAMMA: X = 2.;
+        //const RHO: X = 0.5;
+        //const SIGMA: X = -0.5;
+//
+        //let mut k = 0;
+//
+        //const ITER_THRESHOLD: u8 = 100;
+//
+        //// (x, f(x))
+        //let mut s = vec![(initial_guess, func(initial_guess))];
+        //assert!(s.len() > 0);
+//
+        //while k < ITER_THRESHOLD {
+            //// Order
+            //s.sort_by(|(_x, y)| y);
+//
+            //let l_k = 0;
+            //let h_k = s.len() - 1;
+//
+            //let f_1 = s[i_1].1;
+            //let f_n = s[i_n].1;
+//
+            //let x_h_k = s[h_k].0;
+//
+            //let x_c = {
+                //
+            //};
+//
+            //let x_super_k = |alpha| {
+                //(1 + alpha) * x_c - alpha
+            //};
+//
+            //let x_r = x_super_k(ALPHA);
+//
+            //let f_r = f(x_r);
+//
+            //// Reflect
+            //if f_1 <= f_r && f_r < f_n{
+//
+            //}
+//
+            //k += 1;
+        //}
+
         println!("Dummy implmentation for now");
-        XY {
-            x: initial_guess,
-            y: func(initial_guess),
+        Call {
+            xs: initial_guess,
+            y: f(initial_guess),
         }
     }
 
@@ -167,13 +224,13 @@ mod minimize {
         #[test]
         fn on_x_squared() {
             assert_eq!(
-                minimize(|x| x * x, 0.3),
-                XY::default(),
+                minimize::<1>(|[x]| x * x, [0.3]),
+                Call::TWO_D_ZERO,
             );
 
             assert_eq!(
-                minimize(|x| x * x, -0.3),
-                XY::default(),
+                minimize::<1>(|[x]| x * x, [-0.3]),
+                Call::TWO_D_ZERO,
             );
         }
     }
@@ -206,13 +263,13 @@ fn main() {
     visualise_performance_of_designs(&performances, &design_sweep);
 
     let design_1_minimum_xy = minimize(
-        |x| performance_of_design(translate_design_FortnightlyDeposit, p!(x.round() as i32)),
-        3.0
+        |[x]| performance_of_design(translate_design_FortnightlyDeposit, p!(x.round() as i32)),
+        [3.0]
     );
 
     println!(
-        "minimum: {} -> {}",
-        design_1_minimum_xy.x,
+        "minimum: {:?} -> {}",
+        design_1_minimum_xy.xs,
         design_1_minimum_xy.y
     );
 }
