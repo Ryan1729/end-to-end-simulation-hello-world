@@ -142,18 +142,16 @@ mod minimize {
     type Y = f32;
 
     /// The inputs and outputs of a function call.
-    #[derive(Debug, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
     pub struct Call<const N: usize> {
         pub xs: [X; N],
         pub y: Y,
     }
 
-    impl <const N: usize> Call<N> {
-        pub const TWO_D_ZERO: Call<1> = Call {
-            xs: [0.],
-            y: 0.,
-        };
-    }
+    pub const TWO_D_ZERO: Call<1> = Call {
+        xs: [0.],
+        y: 0.,
+    };
 
     pub fn minimize<const N: usize>(
         f: impl Fn([X; N]) -> Y,
@@ -165,56 +163,119 @@ mod minimize {
         // A paper: https://www.researchgate.net/publication/385833573_The_Nelder-Mead_Simplex_Algorithm_Is_Sixty_Years_Old_New_Convergence_Results_and_Open_Questions
         // For the name of the convergence constants we use the greek letter naming convention from the article.
         // Otherwise we use the naming convention from that paper. We implement the ordered version.
-        //const ALPHA: X = 1.;
-        //const GAMMA: X = 2.;
-        //const RHO: X = 0.5;
-        //const SIGMA: X = -0.5;
-//
-        //let mut k = 0;
-//
-        //const ITER_THRESHOLD: u8 = 100;
-//
-        //// (x, f(x))
-        //let mut s = vec![(initial_guess, func(initial_guess))];
-        //assert!(s.len() > 0);
-//
-        //while k < ITER_THRESHOLD {
-            //// Order
-            //s.sort_by(|(_x, y)| y);
-//
-            //let l_k = 0;
-            //let h_k = s.len() - 1;
-//
-            //let f_1 = s[i_1].1;
-            //let f_n = s[i_n].1;
-//
-            //let x_h_k = s[h_k].0;
-//
-            //let x_c = {
-                //
-            //};
-//
-            //let x_super_k = |alpha| {
-                //(1 + alpha) * x_c - alpha
-            //};
-//
-            //let x_r = x_super_k(ALPHA);
-//
-            //let f_r = f(x_r);
-//
-            //// Reflect
-            //if f_1 <= f_r && f_r < f_n{
-//
-            //}
-//
-            //k += 1;
-        //}
+        const ALPHA: X = 1.;
+        const GAMMA: X = 2.;
+        const RHO: X = 0.5;
+        const SIGMA: X = -0.5;
 
-        println!("Dummy implmentation for now");
-        Call {
-            xs: initial_guess,
-            y: f(initial_guess),
+        let mut k = 0;
+
+        const ITER_THRESHOLD: u8 = 100;
+
+        let mut s = Vec::with_capacity(N + 1);
+        s.push(Call { xs: initial_guess, y: f(initial_guess) });
+        let mut extra_guess = initial_guess;
+        for _ in 0..N {
+            for i in 0..extra_guess.len() {
+                extra_guess[i] += 0.1;
+            }
+            s.push(Call { xs: extra_guess, y: f(extra_guess) });
         }
+        assert!(s.len() > 0);
+
+        while k < ITER_THRESHOLD {
+            // Order
+            s.sort_by(|a, b| a.y.partial_cmp(&b.y).expect("should have no NaNs"));
+
+            let l_k = 0;
+            let h_k = s.len() - 1;
+
+            let x_1 = s[l_k].xs;
+            let f_1 = s[l_k].y;
+            let f_n = s[N - 1].y;
+            let f_n_1 = s[N].y;
+
+            let x_h_k = s[h_k].xs;
+
+            let x_c = {
+                let mut sum = [0.; N];
+
+                for call in s.iter() {
+                    for i in 0..N {
+                        sum[i] += call.xs[i];
+                    }
+                }
+
+                let scale = 1. / (N as X);
+
+                for i in 0..N {
+                    sum[i] *= scale;
+                }
+
+                sum
+            };
+
+            let x_super_k = |alpha| {
+                let mut output = x_c;
+                for i in 0..N {
+                    output[i] *= 1. + alpha;
+                    output[i] -= alpha * x_h_k[i];
+                }
+                output
+            };
+
+            // TODO: Confirm that mutating s is a valid simplification.
+            // Reflect
+            let x_r = x_super_k(ALPHA);
+            let f_r = f(x_r);
+
+            if f_1 <= f_r && f_r < f_n {
+                s[h_k] = Call { xs: x_r, y: f_r };
+            }
+
+            // Expand
+            let x_e = x_super_k(GAMMA);
+            let f_e = f(x_e);
+
+            if f_r < f_1 && f_e < f_r {
+                s[h_k] = Call { xs: x_e, y: f_e };
+            } else if f_r < f_1 && f_r <= f_e {
+                s[h_k] = Call { xs: x_r, y: f_r };
+            }
+
+            // Contract Outside
+            let x_oc = x_super_k(RHO);
+            let f_oc = f(x_oc);
+
+            if f_n <= f_r && f_r < f_n_1 && f_oc <= f_r {
+                s[h_k] = Call { xs: x_oc, y: f_oc };
+            }
+
+            // Contract Inside
+            let x_ic = x_super_k(SIGMA);
+            let f_ic = f(x_ic);
+
+            if f_r >= f_n_1 && f_ic < f_n_1 && f_oc <= f_r {
+                s[h_k] = Call { xs: x_ic, y: f_ic };
+            }
+
+            // Shrink
+            // TODO confirm that these parens are right
+            if (f_n <= f_r && f_r < f_n_1 && f_oc > f_r) || if f_r < f_ic { f_r } else { /* NaN ends up here. Hopefully that case doesn't happen! */ f_ic }  >= f_n_1 {
+                for i in 0..s.len() {
+                    let mut xs = x_1;
+                    for j in 0..N {
+                        xs[j] += s[i].xs[j];
+                        xs[j] *= 0.5;
+                    }
+                    s[i] = Call { xs, y: f(xs) };
+                }
+            }
+
+            k += 1;
+        }
+
+        s[0]
     }
 
     #[cfg(test)]
@@ -225,12 +286,12 @@ mod minimize {
         fn on_x_squared() {
             assert_eq!(
                 minimize::<1>(|[x]| x * x, [0.3]),
-                Call::TWO_D_ZERO,
+                TWO_D_ZERO,
             );
 
             assert_eq!(
                 minimize::<1>(|[x]| x * x, [-0.3]),
-                Call::TWO_D_ZERO,
+                TWO_D_ZERO,
             );
         }
     }
