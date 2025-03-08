@@ -138,6 +138,8 @@ fn visualise_performance_of_designs(performances: &[Performance], designs: &[Mon
 }
 
 mod minimize {
+    use std::ops::{Index, IndexMut};
+
     type X = f32;
     type Y = f32;
 
@@ -153,9 +155,75 @@ mod minimize {
         y: 0.,
     };
 
+    /// A workaround for the lack of `generic_const_exprs` on stable, which would be needed to express
+    /// `[[X; N]; N + 1]`.
+    pub struct Simplex<const N: usize> {
+        pub n: [[X; N]; N],
+        pub plus_one: [X; N],
+    }
+
+    impl <const N: usize> Index<usize> for Simplex<N> {
+        type Output = [X; N];
+
+        fn index(&self, index: usize) -> &Self::Output {
+            if index == self.n.len() {
+                &self.plus_one
+            } else {
+                // Panic as we would on an array if it is too large.
+                &self.n[index]
+            }
+        }
+    }
+
+    impl <const N: usize> IndexMut<usize> for Simplex<N> {
+        fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+            if index == self.n.len() {
+                &mut self.plus_one
+            } else {
+                // Panic as we would on an array if it is too large.
+                &mut self.n[index]
+            }
+        }
+    }
+
+    impl <const N: usize> Simplex<N> {
+        pub const fn len(&self) -> usize {
+            N + 1
+        }
+    }
+
+    /// A regular simplex centered at the origin.
+    pub fn regular_simplex<const N: usize>() -> Simplex<N> {
+        // TODO use technique as described at https://en.wikipedia.org/wiki/Simplex#Cartesian_coordinates_for_a_regular_n-dimensional_simplex_in_Rn
+        todo!("regular_simplex");
+    }
+
+    pub fn regular_simplex_centered_at<const N: usize>(
+        scale: X,
+        center: [X; N]
+    ) -> Simplex<N> {
+        let mut output = regular_simplex::<N>();
+
+        for vertex_index in 0..output.len() {
+            for i in 0..N {
+                output[vertex_index][i] =
+                    output[vertex_index][i] * scale + center[i];
+            }
+        }
+
+        output
+    }
+
+    /// Find the minimum of the given function withing the given simplex.
+    /// If in doubt of what to use for the simplex, pass
+    /// `regular_simplex_centered_at(scale, center)` where `center` is a
+    /// best guess for the minimum, and scale is large enough that the
+    /// resulting simplex covers the desired minimum.
     pub fn minimize<const N: usize>(
         f: impl Fn([X; N]) -> Y,
-        initial_guess: [X; N],
+        initial_simplex: Simplex<N>,
+        // 64k iterations ought to be enough for anybody!
+        iters: u16,
     ) -> Call<N> {
         // Nelder–Mead method
         // References used:
@@ -170,20 +238,15 @@ mod minimize {
 
         let mut k = 0;
 
-        const ITER_THRESHOLD: u8 = 100;
-
+        // TODO? Do this on the stack?
         let mut s = Vec::with_capacity(N + 1);
-        s.push(Call { xs: initial_guess, y: f(initial_guess) });
-        let mut extra_guess = initial_guess;
-        for _ in 0..N {
-            for i in 0..extra_guess.len() {
-                extra_guess[i] += 0.1;
-            }
-            s.push(Call { xs: extra_guess, y: f(extra_guess) });
+        for i in 0..(N + 1) {
+            let xs = initial_simplex[i];
+            s.push(Call { xs, y: f(xs) });
         }
         assert!(s.len() > 0);
 
-        while k < ITER_THRESHOLD {
+        while k < iters {
             // Order
             s.sort_by(|a, b| a.y.partial_cmp(&b.y).expect("should have no NaNs"));
 
@@ -224,7 +287,6 @@ mod minimize {
                 output
             };
 
-            // TODO: Confirm that mutating s is a valid simplification.
             // Reflect
             let x_r = x_super_k(ALPHA);
             let f_r = f(x_r);
@@ -260,7 +322,6 @@ mod minimize {
             }
 
             // Shrink
-            // TODO confirm that these parens are right
             if (f_n <= f_r && f_r < f_n_1 && f_oc > f_r) || if f_r < f_ic { f_r } else { /* NaN ends up here. Hopefully that case doesn't happen! */ f_ic }  >= f_n_1 {
                 for i in 0..s.len() {
                     let mut xs = x_1;
@@ -284,20 +345,28 @@ mod minimize {
 
         #[test]
         fn on_x_squared() {
+            // Start on the answer
             assert_eq!(
-                minimize::<1>(|[x]| x * x, [0.3]),
+                minimize::<1>(|[x]| x * x, regular_simplex_centered_at(1.0, [0.0]), 100),
                 TWO_D_ZERO,
             );
 
+            // Start such that inital simplex contains the answer
             assert_eq!(
-                minimize::<1>(|[x]| x * x, [-0.3]),
+                minimize::<1>(|[x]| x * x, regular_simplex_centered_at(2.0, [1.0]), 100),
+                TWO_D_ZERO,
+            );
+
+            // Start further away
+            assert_eq!(
+                minimize::<1>(|[x]| x * x, regular_simplex_centered_at(4.0, [-2.0]), 100),
                 TWO_D_ZERO,
             );
         }
     }
 
 }
-use minimize::minimize;
+use minimize::{minimize, regular_simplex_centered_at};
 
 fn main() {
     let tx = [t!(d, 10), t!(d, 20), t!(w, 5)];
@@ -325,7 +394,8 @@ fn main() {
 
     let design_1_minimum_xy = minimize(
         |[x]| performance_of_design(translate_design_FortnightlyDeposit, p!(x.round() as i32)),
-        [3.0]
+        regular_simplex_centered_at(100.0, [50.0]),
+        100
     );
 
     println!(
