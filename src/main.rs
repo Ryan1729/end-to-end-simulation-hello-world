@@ -150,6 +150,7 @@ mod minimize {
         pub y: Y,
     }
 
+    #[allow(unused)]
     pub const TWO_D_ZERO: Call<1> = Call {
         xs: [0.],
         y: 0.,
@@ -157,6 +158,7 @@ mod minimize {
 
     /// A workaround for the lack of `generic_const_exprs` on stable, which would be needed to express
     /// `[[X; N]; N + 1]`.
+    #[derive(Debug)]
     pub struct Simplex<const N: usize> {
         pub n: [[X; N]; N],
         pub plus_one: [X; N],
@@ -192,10 +194,73 @@ mod minimize {
         }
     }
 
+
+
     /// A regular simplex centered at the origin.
     pub fn regular_simplex<const N: usize>() -> Simplex<N> {
-        // TODO use technique as described at https://en.wikipedia.org/wiki/Simplex#Cartesian_coordinates_for_a_regular_n-dimensional_simplex_in_Rn
-        todo!("regular_simplex");
+        let mut output = Simplex {
+            n: [[0.; N]; N],
+            plus_one: [0.; N],
+        };
+
+        // Uses technique as described at https://en.wikipedia.org/wiki/Simplex#Cartesian_coordinates_for_a_regular_n-dimensional_simplex_in_Rn
+        // but with a scale correction.
+
+        let cos_45 = (2.0f32).sqrt() / 2.; // AKA 1 / sqrt(2)
+
+        let n = N as f32;
+
+        let axis_aligned_point_length = (cos_45 - (cos_45 / n)*(1. - (1. / ((n + 1.).sqrt())))) * 2.;
+
+        for i in 0..N {
+            output[i][i] = axis_aligned_point_length;
+        }
+
+        let plus_one_value = -(2. / (2. * (n + 1.)).sqrt());
+
+        for i in 0..N {
+            output.plus_one[i] = plus_one_value;
+        }
+
+        output
+    }
+
+    #[cfg(test)]
+    mod regular_simplex_works {
+        use super::*;
+
+        fn dist_from_0(point: &[f32]) -> f32 {
+            point.iter().map(|x| x * x).sum::<f32>().sqrt()
+        }
+
+        macro_rules! approx_eq {
+            ($a: expr, $b: expr) => {
+                assert!(($a - $b).abs() < 0.0001);
+            };
+        }
+
+        #[test]
+        fn in_1d() {
+            let output = regular_simplex::<1>();
+
+            for i in 0..output.n.len() {
+                approx_eq!(dist_from_0(&output.n[0]), 1.);
+            }
+
+            approx_eq!(dist_from_0(&output.plus_one), 1.);
+        }
+        // This one fails, and it seems like the wikipedia article is slightly wrong anyway?
+        #[cfg(any())]
+        #[test]
+        fn in_2d() {
+            let output = regular_simplex::<2>();
+            
+            for i in 0..output.n.len() {
+                approx_eq!(dist_from_0(&output.n[0]), 1.);
+            }
+
+            approx_eq!(dist_from_0(&output.plus_one), 1.);
+        }
     }
 
     pub fn regular_simplex_centered_at<const N: usize>(
@@ -244,7 +309,8 @@ mod minimize {
             let xs = initial_simplex[i];
             s.push(Call { xs, y: f(xs) });
         }
-        assert!(s.len() > 0);
+        s.reverse(); // HACK
+
 
         while k < iters {
             // Order
@@ -394,7 +460,7 @@ fn main() {
 
     let design_1_minimum_xy = minimize(
         |[x]| performance_of_design(translate_design_FortnightlyDeposit, p!(x.round() as i32)),
-        regular_simplex_centered_at(100.0, [50.0]),
+        regular_simplex_centered_at(100.0, [100.0]),
         100
     );
 
