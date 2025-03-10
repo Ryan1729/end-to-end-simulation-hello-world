@@ -194,8 +194,6 @@ mod minimize {
         }
     }
 
-
-
     /// A regular simplex centered at the origin.
     pub fn regular_simplex<const N: usize>() -> Simplex<N> {
         let mut output = Simplex {
@@ -210,13 +208,19 @@ mod minimize {
 
         let n = N as f32;
 
-        let axis_aligned_point_length = (cos_45 - (cos_45 / n)*(1. - (1. / ((n + 1.).sqrt())))) * 2.;
+        let base = -(cos_45 / n)*(1. - (1. / ((n + 1.).sqrt())));
 
         for i in 0..N {
-            output[i][i] = axis_aligned_point_length;
+            for j in 0..N {
+                output[i][j] = if i == j {
+                    cos_45 + base
+                } else {
+                    base
+                };
+            }
         }
 
-        let plus_one_value = -(2. / (2. * (n + 1.)).sqrt());
+        let plus_one_value = -(1. / (2. * (n + 1.)).sqrt());
 
         for i in 0..N {
             output.plus_one[i] = plus_one_value;
@@ -243,23 +247,26 @@ mod minimize {
         fn in_1d() {
             let output = regular_simplex::<1>();
 
-            for i in 0..output.n.len() {
-                approx_eq!(dist_from_0(&output.n[0]), 1.);
-            }
+            let first_dist = dist_from_0(&output.plus_one);
 
-            approx_eq!(dist_from_0(&output.plus_one), 1.);
+            assert!(first_dist != 0.);
+
+            for i in 0..output.n.len() {
+                approx_eq!(dist_from_0(&output.n[i]), first_dist);
+            }
         }
-        // This one fails, and it seems like the wikipedia article is slightly wrong anyway?
-        #[cfg(any())]
+
         #[test]
         fn in_2d() {
             let output = regular_simplex::<2>();
-            
-            for i in 0..output.n.len() {
-                approx_eq!(dist_from_0(&output.n[0]), 1.);
-            }
 
-            approx_eq!(dist_from_0(&output.plus_one), 1.);
+            let first_dist = dist_from_0(&output.plus_one);
+
+            assert!(first_dist != 0.);
+
+            for i in 0..output.n.len() {
+                approx_eq!(dist_from_0(&output.n[i]), first_dist);
+            }
         }
     }
 
@@ -309,7 +316,6 @@ mod minimize {
             let xs = initial_simplex[i];
             s.push(Call { xs, y: f(xs) });
         }
-        s.reverse(); // HACK
 
 
         while k < iters {
@@ -460,7 +466,7 @@ fn main() {
 
     let design_1_minimum_xy = minimize(
         |[x]| performance_of_design(translate_design_FortnightlyDeposit, p!(x.round() as i32)),
-        regular_simplex_centered_at(100.0, [100.0]),
+        regular_simplex_centered_at(100.0, [50.0]),
         100
     );
 
