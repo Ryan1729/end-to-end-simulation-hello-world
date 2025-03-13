@@ -4,7 +4,7 @@ mod minimize;
 mod xs;
 
 use minimize::{minimize, regular_simplex_centered_at};
-use xs::{Seed, Xs};
+use xs::{Seed};
 
 const ANNUAL_FORTNIGHTS: u8 = 26;
 
@@ -171,6 +171,17 @@ fn translate_environment_FortnightlyRandomWithdrawal(
     output
 }
 
+fn translate_FortnightlyDepositAndRandomWithdrawal(design_parameters: DesignParameters) -> Vec<Transaction> {
+    translate_design_FortnightlyDeposit(design_parameters)
+        .into_iter()
+        .zip(translate_environment_FortnightlyRandomWithdrawal(<_>::default()))
+        .flat_map(|(a, b)| {
+            vec![a, b]
+        })
+        .collect::<Vec<_>>()
+}
+
+
 fn main() {
     let tx = [t!(d, 10), t!(d, 20), t!(w, 5)];
     let sb = simulate_balance(&tx);
@@ -214,6 +225,10 @@ fn main() {
     println!("performance_1_minimum: {performance_1_minimum:?}");
 
     println!("{:?}", simulate_balance(&translate_design_FortnightlyDeposit(design_1_minimum)));
-    
+
     println!("{:?}", simulate_balance(&translate_environment_FortnightlyRandomWithdrawal(<_>::default())));
+
+    println!("{:?}", simulate_balance(&translate_FortnightlyDepositAndRandomWithdrawal(design_1)));
+
+    evaluate!(translate_FortnightlyDepositAndRandomWithdrawal, design_1);
 }

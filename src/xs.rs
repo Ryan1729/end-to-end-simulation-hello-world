@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 pub type Seed = [u8; 16];
 
 pub type Xs = [core::num::Wrapping<u32>; 4];
