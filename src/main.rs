@@ -182,6 +182,65 @@ fn translate_FortnightlyDepositAndRandomWithdrawal(design_parameters: DesignPara
 }
 
 
+fn translate_InitialAndFortnightlyDepositAndRandomWithdrawal(design_parameters: DesignParameters) -> Vec<Transaction> {
+        translate_design_InitialAndFortnightlyDeposit(design_parameters)
+        .into_iter()
+        .zip(translate_environment_FortnightlyRandomWithdrawal(<_>::default()))
+        .flat_map(|(a, b)| {
+            vec![a, b]
+        })
+        .collect::<Vec<_>>()
+}
+
+fn linspace(
+    start: f32,
+    end: f32,
+    num: u16 /* 64k points ought to be enough for anybody! */
+) -> Vec<f32> {
+    let mut output = Vec::with_capacity(num as _);
+
+    let delta = (end - start) / num as f32;
+
+    for i in 0..num {
+        output.push(start + delta * i as f32);
+    }
+
+    output
+}
+
+type Call = ((f32, f32), Performance);
+
+fn sample_performance_of_alternative_design() -> Vec<Call> {
+    let size = 50;
+    let xs1 = linspace(90., 115., size);
+    let xs2 = linspace(0., 6., size);
+    let mut output = Vec::with_capacity(xs2.len());
+
+    for j in 0..size {
+        for i in 0..size {
+            let x1 = xs1[i as usize];
+            let x2 = xs2[i as usize];
+            output.push((
+                (x1, x2),
+                performance_of_design(
+                    translate_InitialAndFortnightlyDepositAndRandomWithdrawal,
+                    p!(x1 as i32, x2 as i32),
+                )
+            ));
+        }
+    }
+
+    output
+}
+
+fn visualise_performance_of_alternative_design(calls: Vec<Call>) {
+    print!("[");
+    for i in 0..calls.len() {
+        print!("{:?},", calls[i]);
+    }
+    println!("]");
+}
+
 fn main() {
     let tx = [t!(d, 10), t!(d, 20), t!(w, 5)];
     let sb = simulate_balance(&tx);
@@ -231,4 +290,7 @@ fn main() {
     println!("{:?}", simulate_balance(&translate_FortnightlyDepositAndRandomWithdrawal(design_1)));
 
     evaluate!(translate_FortnightlyDepositAndRandomWithdrawal, design_1);
+
+    let calls = sample_performance_of_alternative_design();
+    visualise_performance_of_alternative_design(calls);
 }
